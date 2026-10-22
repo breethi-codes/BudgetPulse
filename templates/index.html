@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>Expense Dashboard</h2>
+    <form method="GET" action="{{ url_for('index') }}" class="month-form" id="monthForm">
+        <label for="month">Select Month:</label>
+        <input type="month" id="month" name="month" value="{{ selected_month }}" required>
+    </form>
+</div>
+
+<div class="metrics-grid">
+    <div class="card">
+        <h3>Monthly Budget</h3>
+        <p class="metric-value">₹{{ "%.2f"|format(monthly_budget) }}</p>
+        <form method="POST" action="{{ url_for('set_budget') }}" class="inline-form">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <input type="number" step="0.01" min="0" name="budget_amount" aria-label="Monthly budget amount" placeholder="Set Budget" value="{{ '%.2f'|format(monthly_budget) if budget_is_set else '' }}" required>
+            <button type="submit" class="btn-secondary">Update</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Total Spent</h3>
+        <p class="metric-value text-spent">₹{{ "%.2f"|format(total_spent) }}</p>
+    </div>
+
+    <div class="card">
+        <h3>Remaining Budget</h3>
+        {% if budget_is_set %}
+            <p class="metric-value {% if remaining_budget < 0 %}text-danger{% else %}text-success{% endif %}">
+                ₹{{ "%.2f"|format(remaining_budget) }}
+            </p>
+        {% else %}
+            <p class="metric-value">—</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if budget_is_set %}
+    <div class="budget-progress">
+        <progress value="{{ percent_used }}" max="100" class="{% if exceeded_100 %}progress-danger{% elif warning_80 %}progress-warning{% endif %}"></progress>
+        <p class="budget-note">{{ percent_used }}% of the monthly budget is used.</p>
+    </div>
+{% else %}
+    <p class="budget-note">No budget is set for this month. Set a budget to see the remaining amount and warnings.</p>
+{% endif %}
+
+{% if warning_80 %}
+    <div class="alert alert-warning" role="alert">
+        ⚠️ <strong>Warning:</strong> You have spent 80% or more of your monthly budget!
+    </div>
+{% endif %}
+
+{% if exceeded_100 %}
+    <div class="alert alert-danger" role="alert">
+        🚨 <strong>Budget limit reached:</strong> You have spent your full monthly budget or more!
+    </div>
+{% endif %}
+
+<div class="content-grid">
+    <div class="panel">
+        <h3>Add New Expense</h3>
+        <form method="POST" action="{{ url_for('add_expense') }}" class="expense-form" id="expenseForm">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+
+            <div class="form-group">
+                <label for="title">Item Name / Title</label>
+                <input type="text" id="title" name="title" maxlength="100" placeholder="e.g., Grocery, Electricity Bill" required>
+            </div>
+
+            <div class="form-group">
+                <label for="amount">Amount (₹)</label>
+                <input type="number" id="amount" step="0.01" name="amount" placeholder="0.00" min="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label for="category">Category</label>
+                <select id="category" name="category" required>
+                    <option value="" disabled selected>Select category</option>
+                    {% for value, label in categories.items() %}
+                        <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="date">Date</label>
+                <input type="date" id="date" name="date" value="{{ default_date }}" required>
+            </div>
+
+            <button type="submit" class="btn-primary">Add Expense</button>
+        </form>
+    </div>
+
+    <div class="panel">
+        <h3>Category Breakdown</h3>
+        {% if category_summary %}
+        
+            <div class="chart-box">
+                <canvas id="categoryChart"
+                        data-labels='{{ cat_labels | tojson }}'
+                        data-totals='{{ cat_totals | tojson }}'>
+                </canvas>
+            </div>
+            <ul class="category-list">
+                {% for row in category_summary %}
+                    <li>
+                        <span class="cat-name">{{ row['category'] }}</span>
+                        <span class="cat-amount">₹{{ "%.2f"|format(row['total']) }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty-text">No expenses recorded for this month yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="panel full-width">
+    <h3>Transaction History for {{ selected_month }} ({{ expenses|length }})</h3>
+    {% if expenses %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exp in expenses %}
+                        <tr>
+                            <td>{{ exp['date'] }}</td>
+                            <td>{{ exp['title'] }}</td>
+                            <td><span class="badge">{{ exp['category'] }}</span></td>
+                            <td><strong>₹{{ "%.2f"|format(exp['amount']) }}</strong></td>
+                            <td>
+                                <form action="{{ url_for('delete_expense', expense_id=exp['id']) }}" method="POST" class="delete-form">
+                                    <button type="submit" class="btn-delete">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-text">No transactions found.</p>
+    {% endif %}
+</div>
+{% endblock %}
